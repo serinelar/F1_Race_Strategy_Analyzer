@@ -1,9 +1,9 @@
-
-
 import streamlit as st
 from data_loader import load_session
 from strategy_analysis import *
 from visualization import *
+from strategy_recommender import recommend_optimal_strategy
+from circuit_data import circuit_profiles
 
 st.set_page_config(page_title="🏎️ F1 Race Strategy Analyzer", layout="wide")
 
@@ -80,8 +80,40 @@ if st.session_state.session_data:
     st.subheader("📡 Telemetry overlay")
     driver_choice = st.selectbox("Choose driver for telemetry", laps['Driver'].unique())
     try:
-        tel = session.laps.pick_driver(driver_choice).get_telemetry().add_distance()
+        tel = session.laps.pick_drivers(driver_choice).get_telemetry().add_distance()
         fig_tel = px.line(tel, x='Distance', y='Speed', title=f"Telemetry: Speed vs Distance ({driver_choice})")
         st.plotly_chart(fig_tel, use_container_width=True)
     except Exception as e:
         st.info("No telemetry available for selected driver/session.")
+    
+    # === Strategy Recommendation ===
+    st.subheader("🧠 Recommended Race Strategy")
+    
+    total_laps = int(laps["LapNumber"].max())
+    
+    if degradation.empty:
+        st.info("Degradation data unavailable to compute strategy recommendations.")
+    
+    else:
+        # Retrieve circuit profile
+        circuit_info = circuit_profiles.get(gp_name, {"type": "balanced", "pit_loss": 20.0})
+        st.write(f"📍 **Circuit profile:** {circuit_info['type']} | {circuit_info['notes']}")
+        
+        weather = st.radio("Weather Conditions", ["dry", "wet"], horizontal=True)
+        pit_loss_input = st.slider("Estimated pit loss (s)", 15.0, 30.0, circuit_info["pit_loss"])
+        
+        best, all_strats = recommend_optimal_strategy(
+            total_laps,
+            degradation,
+            pit_loss=pit_loss_input,
+            circuit_type=circuit_info["type"],
+            weather=weather
+        )
+        
+        if best is not None:
+            st.success(f"🏁 **Optimal strategy:** {best['Strategy']} — Total time: {best['TotalTime_s']:.1f} s")
+            st.dataframe(all_strats)
+        
+        else:
+            st.warning("No valid strategy could be generated for this configuration.")
+
