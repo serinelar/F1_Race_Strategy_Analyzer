@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+
+# FastF1 Cache
+cache/
+
+# Environments
+venv/
+.env
+
+# Streamlit
+.streamlit/
