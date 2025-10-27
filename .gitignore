@@ -1,27 +1,26 @@
 # Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*.egg-info/
+dist/
+build/
 
-# Virtual environment
+# Virtual env
 venv/
-.env/
+.env
+.env.*
 
-# FastF1 cache
+# fastf1 cache & local caches
 cache/
 *.sqlite
-fastf1_http_cache.sqlite
-fastf1_cache.sqlite
+*.db
 
-# Streamlit logs
+# Streamlit
 .streamlit/
 
-# Data
-data/*.csv
-data/*.parquet
-data/*.json
+# VSCode
+.vscode/
 
-# OS files
+# OS
 .DS_Store
 Thumbs.db

@@ -1,3 +1,5 @@
+
+
 import numpy as np
 import pandas as pd
 
@@ -72,6 +74,19 @@ def simulate_strategy(total_laps, compound_sequence, degradation_df, pit_loss=20
         "sequence": compound_sequence
     }
 
+def compute_candidate_pit_laps(total_laps, tyre_life):
+    """
+    Returns list of candidate pit lap numbers for each compound based on tyre_life mapping {compound: laps}.
+    For example: if tyre_life['M']=15 and total_laps=60 -> candidate midpoints [15,30,45] etc.
+    """
+    candidates = set()
+    for comp, life in tyre_life.items():
+        step = max(1, life)
+        lap = step
+        while lap < total_laps:
+            candidates.add(lap)
+            lap += step
+    return sorted(candidates)
 
 def recommend_optimal_strategy(total_laps, degradation_df, pit_loss=20.0,
                                circuit_type="balanced", weather="dry",
@@ -128,7 +143,7 @@ def recommend_optimal_strategy(total_laps, degradation_df, pit_loss=20.0,
     for num_stints in stint_count_options:
         sequences = list(_generate_compound_sequences(compound_options, num_stints, weather))
         for seq in sequences:
-            sim = simulate_strategy(total_laps, seq, degradation_df, pit_loss)
+            sim = simulate_strategy(total_laps, seq, degradation_df, pit_loss, tyre_life)
             results.append(sim)
 
     if not results:

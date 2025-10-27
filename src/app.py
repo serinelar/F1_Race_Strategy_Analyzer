@@ -1,9 +1,13 @@
+
+
 import streamlit as st
 from data_loader import load_session
 from strategy_analysis import *
 from visualization import *
 from strategy_recommender import recommend_optimal_strategy
 from circuit_data import circuit_profiles
+from undercut_simulator import simulate_undercut_vs_overcut, plot_undercut_simulation
+from insights import lap_time_insights
 
 st.set_page_config(page_title="🏎️ F1 Race Strategy Analyzer", layout="wide")
 
@@ -47,6 +51,11 @@ if st.session_state.session_data:
 
     st.subheader("📊 Tyre Degradation Curve")
     st.plotly_chart(plot_degradation_curve(degradation), use_container_width=True)
+
+    st.subheader("🔍 Auto insights")
+    ins = lap_time_insights(stints)
+    for s in ins:
+        st.write("- " + s)
 
     # === Sidebar Tools ===
     st.sidebar.markdown("---")
@@ -118,4 +127,32 @@ if st.session_state.session_data:
         
         else:
             st.warning("No valid strategy could be generated for this configuration.")
+
+    
+    st.markdown("---")
+    st.header("⏱️ Undercut vs Overcut Payoff Simulation")
+    
+    compound_a = st.selectbox("Tyre for Driver A (Undercut)", degradation["Compound"].unique())
+    compound_b = st.selectbox("Tyre for Driver B (Overcut)", degradation["Compound"].unique())
+    undercut_lap = st.slider("Undercut Lap", 5, total_laps - 5, 15)
+    pit_loss_sim = st.number_input("Pit Loss (s)", min_value=15.0, max_value=30.0, value=20.0)
+    
+    if st.button("Simulate Undercut/Overcut"):
+        with st.spinner("Simulating..."):
+            payoff_df, payoff_summary = simulate_undercut_vs_overcut(
+                degradation,
+                compound_a=compound_a,
+                compound_b=compound_b,
+                undercut_lap=undercut_lap,
+                total_laps=total_laps,
+                pit_loss=pit_loss_sim
+            )
+            
+            fig = plot_undercut_simulation(payoff_df, payoff_summary)
+            st.plotly_chart(fig, use_container_width=True)
+            
+            st.success(
+                f"✅ Optimal undercut lap: **{payoff_summary['BestLap']}** with gap **{payoff_summary['MinGap(s)']:.2f}s**"
+            )
+
 
