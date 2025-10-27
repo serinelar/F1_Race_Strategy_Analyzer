@@ -73,7 +73,9 @@ def simulate_strategy(total_laps, compound_sequence, degradation_df, pit_loss=20
     }
 
 
-def recommend_optimal_strategy(total_laps, degradation_df, pit_loss=20.0, circuit_type="balanced", weather="dry"):
+def recommend_optimal_strategy(total_laps, degradation_df, pit_loss=20.0,
+                               circuit_type="balanced", weather="dry",
+                               qualifying_position=None):
     """
     Recommend the optimal pit strategy under realistic FIA and circuit conditions.
 
@@ -83,16 +85,16 @@ def recommend_optimal_strategy(total_laps, degradation_df, pit_loss=20.0, circui
     - pit_loss: base pit loss (s)
     - circuit_type: 'high_deg', 'low_deg', or 'balanced'
     - weather: 'dry' or 'wet'
+    - qualifying_position: int (1 = pole, higher = further back)
 
     Returns:
     - best strategy and ranked alternatives (DataFrame)
     """
-
     compound_options = degradation_df["Compound"].unique().tolist()
     results = []
 
     # --- Adjust degradation multipliers based on weather ---
-    weather_factor = 1.0 if weather == "dry" else 0.7  # wet races reduce degradation
+    weather_factor = 1.0 if weather == "dry" else 0.7
     pit_loss *= 1.1 if weather == "wet" else 1.0
 
     # --- Estimate degradation life per compound ---
@@ -108,11 +110,23 @@ def recommend_optimal_strategy(total_laps, degradation_df, pit_loss=20.0, circui
     else:
         stint_count_options = [1, 2]
 
+    # --- Adjust for qualifying position bias ---
+    if qualifying_position:
+        if qualifying_position <= 3:
+            # front runners -> favor track position
+            stint_count_options = [1, 2]
+            pit_loss *= 1.05  # conservative approach
+        elif 4 <= qualifying_position <= 10:
+            # midfield -> balanced
+            stint_count_options = [2]
+        else:
+            # backmarkers -> aggressive, multiple stints
+            stint_count_options = [2, 3]
+            pit_loss *= 0.95  # more aggressive
+
     # --- Generate valid compound sequences ---
     for num_stints in stint_count_options:
-        sequences = [
-            seq for seq in _generate_compound_sequences(compound_options, num_stints, weather)
-        ]
+        sequences = list(_generate_compound_sequences(compound_options, num_stints, weather))
         for seq in sequences:
             sim = simulate_strategy(total_laps, seq, degradation_df, pit_loss)
             results.append(sim)
@@ -127,7 +141,6 @@ def recommend_optimal_strategy(total_laps, degradation_df, pit_loss=20.0, circui
 
     best = results_df.iloc[0]
     return best, results_df
-
 
 def _generate_compound_sequences(compounds, stint_count, weather):
     """

@@ -101,14 +101,16 @@ if st.session_state.session_data:
         
         weather = st.radio("Weather Conditions", ["dry", "wet"], horizontal=True)
         pit_loss_input = st.slider("Estimated pit loss (s)", 15.0, 30.0, circuit_info["pit_loss"])
+        qual_pos = st.slider("Qualifying Position", 1, 20, 5)
         
         best, all_strats = recommend_optimal_strategy(
             total_laps,
             degradation,
             pit_loss=pit_loss_input,
             circuit_type=circuit_info["type"],
-            weather=weather
-        )
+            weather=weather,
+            qualifying_position=qual_pos
+            )
         
         if best is not None:
             st.success(f"🏁 **Optimal strategy:** {best['Strategy']} — Total time: {best['TotalTime_s']:.1f} s")
