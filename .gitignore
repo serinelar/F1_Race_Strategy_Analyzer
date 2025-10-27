@@ -3,15 +3,25 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-*.db
-*.sqlite3
 
-# FastF1 Cache
-cache/
-
-# Environments
+# Virtual environment
 venv/
-.env
+.env/
 
-# Streamlit
+# FastF1 cache
+cache/
+*.sqlite
+fastf1_http_cache.sqlite
+fastf1_cache.sqlite
+
+# Streamlit logs
 .streamlit/
+
+# Data
+data/*.csv
+data/*.parquet
+data/*.json
+
+# OS files
+.DS_Store
+Thumbs.db

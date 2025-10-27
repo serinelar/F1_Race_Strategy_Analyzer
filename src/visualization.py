@@ -117,9 +117,7 @@ def plot_sector_violin(sector_df):
     return fig
 
 def plot_simulation(sim_dict, driver, rival):
-    """
-    Plot cumulative race time simulation for driver and rival.
-    """
+    """ Plot cumulative race time simulation for driver and rival. """
     if not sim_dict or 'sim_driver_cum' not in sim_dict:
         fig = go.Figure()
         fig.update_layout(title="No simulation results")
@@ -127,9 +125,15 @@ def plot_simulation(sim_dict, driver, rival):
 
     lap_axis = list(range(1, len(sim_dict['sim_driver_cum']) + 1))
     fig = go.Figure()
-    fig.add_trace(go.Line(x=lap_axis, y=sim_dict['sim_driver_cum'], name=driver))
-    fig.add_trace(go.Line(x=lap_axis, y=sim_dict['sim_rival_cum'], name=rival))
-    fig.update_layout(title=f"Simulation: {driver} vs {rival} (final gap {sim_dict['final_gap_s']:.2f}s)",
-                      xaxis_title="Lap", yaxis_title="Cumulative Race Time (s)")
+    fig.add_trace(go.Scatter(x=lap_axis, y=sim_dict['sim_driver_cum'],
+                             mode='lines', name=driver))
+    fig.add_trace(go.Scatter(x=lap_axis, y=sim_dict['sim_rival_cum'],
+                             mode='lines', name=rival))
+    fig.update_layout(
+        title=f"Simulation: {driver} vs {rival} (final gap {sim_dict['final_gap_s']:.2f}s)",
+        xaxis_title="Lap",
+        yaxis_title="Cumulative Race Time (s)"
+    )
     return fig
+
 
