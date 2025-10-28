@@ -1,9 +1,12 @@
+# app.py
 import streamlit as st
+import fastf1
+import pandas as pd
+
 from data_loader import load_session
 from strategy_analysis import *
 from visualization import *
 from strategy_recommender import recommend_optimal_strategy
-from circuit_data import circuit_profiles
 from undercut_simulator import simulate_undercut_vs_overcut, plot_undercut_simulation
 from insights import lap_time_insights
 
@@ -14,7 +17,81 @@ st.markdown("Interactive, data-driven analysis of F1 races and tyre strategies."
 
 # Sidebar controls
 year = st.sidebar.selectbox("Select Year", list(range(2018, 2024))[::-1])
-gp_name = st.sidebar.text_input("Enter Grand Prix Name (e.g. 'Monza', 'Silverstone')", "Monza")
+
+# Fetch circuit names dynamically
+@st.cache_data(show_spinner=False)
+def get_circuit_names(year):
+    try:
+        schedule = fastf1.get_event_schedule(year)
+        return schedule["EventName"].unique().tolist()
+    except Exception as e:
+        print(f"⚠️ Could not load event schedule for {year}: {e}")
+        # Fallback to a few common names
+        return ["Monza", "Silverstone", "Spa", "Bahrain", "Melbourne", "Suzuka"]
+
+circuit_names = get_circuit_names(year)
+gp_name = st.sidebar.selectbox("Select Grand Prix", circuit_names, index=0)
+
+@st.cache_data(show_spinner=False)
+def get_circuit_profile(_session):
+    """
+    Dynamically infer circuit characteristics from FastF1 metadata.
+    """
+    try:
+        event = _session.event
+        circuit_name = event['EventName']
+        location = event['Location']
+        country = event['Country']
+        event_format = event['EventFormat']
+        round_number = event['RoundNumber']
+
+        # Try to extract circuit length and other info
+        track_length_km = getattr(event, 'OfficialLength', None)
+        if track_length_km is None:
+            # heuristic fallback
+            if "Monaco" in circuit_name:
+                track_length_km = 3.34
+            elif "Spa" in circuit_name:
+                track_length_km = 7.00
+            else:
+                track_length_km = 5.0
+
+        # Heuristic circuit classification
+        lower = circuit_name.lower()
+        if any(k in lower for k in ["monaco", "hungaroring", "singapore", "miami", "baku", "vegas", "jeddah"]):
+            circuit_type = "street / high-downforce"
+            pit_loss = 22.5
+        elif any(k in lower for k in ["monza", "spa", "silverstone", "bahrain", "mexico", "cota"]):
+            circuit_type = "low-downforce / power-sensitive"
+            pit_loss = 18.5
+        else:
+            circuit_type = "balanced / technical"
+            pit_loss = 20.0
+
+        notes = (
+            f"{circuit_name} ({country}) — Round {round_number} "
+            f"| Track length ≈ {track_length_km:.2f} km "
+            f"| Type: {circuit_type}"
+        )
+
+        return {
+            "name": circuit_name,
+            "type": circuit_type,
+            "pit_loss": pit_loss,
+            "length_km": track_length_km,
+            "notes": notes,
+        }
+
+    except Exception as e:
+        print(f"⚠️ Could not infer circuit profile: {e}")
+        return {
+            "name": "Unknown",
+            "type": "balanced",
+            "pit_loss": 20.0,
+            "length_km": 5.0,
+            "notes": "Default profile applied.",
+        }
+
 session_type = st.sidebar.selectbox("Session Type", ["R", "Q"])
 
 # Load data only once
@@ -22,7 +99,7 @@ if "session_data" not in st.session_state:
     st.session_state.session_data = None
 
 if st.sidebar.button("Load Data"):
-    with st.spinner("Loading session data..."):
+    with st.spinner(f"Loading {year} {gp_name} {session_type} session..."):
         session = load_session(year, gp_name, session_type)
         if session is None:
             st.error("❌ Could not load session. Check GP name or internet connection.")
@@ -51,9 +128,8 @@ if st.session_state.session_data:
     st.plotly_chart(plot_degradation_curve(degradation), use_container_width=True)
 
     st.subheader("🔍 Auto insights")
-    ins = lap_time_insights(stints)
-    for s in ins:
-        st.write("- " + s)
+    for insight in lap_time_insights(stints):
+        st.write(f"- {insight}")
 
     # === Sidebar Tools ===
     st.sidebar.markdown("---")
@@ -78,11 +154,8 @@ if st.session_state.session_data:
     st.plotly_chart(plot_simulation(sim_result, sim_driver, sim_rival), use_container_width=True)
 
     st.subheader("⚖️ Consistency & Sector analysis")
-    cons_stats = stint_consistency(stints)
-    st.plotly_chart(plot_stint_consistency(cons_stats), use_container_width=True)
-
-    sector_df = sector_analysis(laps)
-    st.plotly_chart(plot_sector_violin(sector_df), use_container_width=True)
+    st.plotly_chart(plot_stint_consistency(stint_consistency(stints)), use_container_width=True)
+    st.plotly_chart(plot_sector_violin(sector_analysis(laps)), use_container_width=True)
 
     st.subheader("📡 Telemetry overlay")
     driver_choice = st.selectbox("Choose driver for telemetry", laps['Driver'].unique())
@@ -102,11 +175,21 @@ if st.session_state.session_data:
         st.info("Degradation data unavailable to compute strategy recommendations.")
     
     else:
-        # Retrieve circuit profile
-        circuit_info = circuit_profiles.get(gp_name, {"type": "balanced", "pit_loss": 20.0})
-        st.write(f"📍 **Circuit profile:** {circuit_info['type']} | {circuit_info['notes']}")
-        
+        circuit_info = get_circuit_profile(session)
+        st.write(f"📍 **Circuit profile:** {circuit_info['type']} — {circuit_info['notes']}")
+
         weather = st.radio("Weather Conditions", ["dry", "wet"], horizontal=True)
+
+        weather_forecast = st.radio("Weather Forecast", ["Dry", "Light Rain", "Heavy Rain", "Variable"], horizontal=True)
+        
+        # Apply bias factor
+        weather_bias = {
+            "Dry": 1.0,
+            "Light Rain": 0.9,
+            "Heavy Rain": 0.75,
+            "Variable": 0.85
+        }[weather_forecast]
+
         pit_loss_input = st.slider("Estimated pit loss (s)", 15.0, 30.0, circuit_info["pit_loss"])
         qual_pos = st.slider("Qualifying Position", 1, 20, 5)
         
@@ -115,8 +198,9 @@ if st.session_state.session_data:
             degradation,
             pit_loss=pit_loss_input,
             circuit_type=circuit_info["type"],
-            weather=weather,
-            qualifying_position=qual_pos
+            weather=weather_forecast.lower(),
+            qualifying_position=qual_pos,
+            weather_bias=weather_bias,
             )
         
         if best is not None:
@@ -138,19 +222,9 @@ if st.session_state.session_data:
     if st.button("Simulate Undercut/Overcut"):
         with st.spinner("Simulating..."):
             payoff_df, payoff_summary = simulate_undercut_vs_overcut(
-                degradation,
-                compound_a=compound_a,
-                compound_b=compound_b,
-                undercut_lap=undercut_lap,
-                total_laps=total_laps,
-                pit_loss=pit_loss_sim
+                degradation, compound_a, compound_b, undercut_lap, total_laps, pit_loss_sim
             )
-            
             fig = plot_undercut_simulation(payoff_df, payoff_summary)
             st.plotly_chart(fig, use_container_width=True)
-            
-            st.success(
-                f"✅ Optimal undercut lap: **{payoff_summary['BestLap']}** with gap **{payoff_summary['MinGap(s)']:.2f}s**"
-            )
-
+            st.success(f"✅ Optimal undercut lap: **{payoff_summary['BestLap']}** | Gap: **{payoff_summary['MinGap(s)']:.2f}s**")
 

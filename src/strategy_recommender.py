@@ -1,3 +1,5 @@
+
+# strategy_recommender
 import numpy as np
 import pandas as pd
 
@@ -18,7 +20,7 @@ def estimate_tyre_life(degradation_df):
     return tyre_life
 
 
-def simulate_strategy(total_laps, compound_sequence, degradation_df, pit_loss=20.0, tyre_life=None):
+def simulate_strategy(total_laps, compound_sequence, degradation_df, pit_loss=20.0, tyre_life=None, circuit_type="balanced", weather="dry"):
     """
     Simulate a race given a tyre compound sequence (list like ['M', 'H']) and degradation model.
 
@@ -55,6 +57,17 @@ def simulate_strategy(total_laps, compound_sequence, degradation_df, pit_loss=20
         else:
             lap_times = avg_curve[:stint_len]
 
+        deg_multiplier = 1.0
+        if "high" in circuit_type.lower():      # high-deg or street tracks
+            deg_multiplier = 1.1
+        elif "low" in circuit_type.lower():     # low-deg or power-sensitive
+            deg_multiplier = 0.9
+            
+        if "wet" in weather.lower():
+            deg_multiplier *= 0.8               # less degradation in wet
+            
+        lap_times = lap_times * deg_multiplier     
+
         stint_time = lap_times.sum()
         total_time += stint_time
         stint_results.append({
@@ -90,7 +103,8 @@ def compute_candidate_pit_laps(total_laps, tyre_life):
 
 def recommend_optimal_strategy(total_laps, degradation_df, pit_loss=20.0,
                                circuit_type="balanced", weather="dry",
-                               qualifying_position=None):
+                               qualifying_position=None, weather_bias=1.0,
+                               driver_form_factor=1.0, car_performance_factor=1.0,):
     """
     Recommend the optimal pit strategy under realistic FIA and circuit conditions.
 
@@ -143,7 +157,14 @@ def recommend_optimal_strategy(total_laps, degradation_df, pit_loss=20.0,
     for num_stints in stint_count_options:
         sequences = list(_generate_compound_sequences(compound_options, num_stints, weather))
         for seq in sequences:
-            sim = simulate_strategy(total_laps, seq, degradation_df, pit_loss=pit_loss, tyre_life=tyre_life)
+            sim = simulate_strategy(
+                total_laps, seq, degradation_df,
+                pit_loss=pit_loss,
+                tyre_life=tyre_life,
+                circuit_type=circuit_type,
+                weather=weather
+                )
+            sim["total_race_time_s"] *= (1 / (driver_form_factor * car_performance_factor))
             results.append(sim)
 
     if not results:
