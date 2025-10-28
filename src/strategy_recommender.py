@@ -1,5 +1,3 @@
-
-
 import numpy as np
 import pandas as pd
 
@@ -20,7 +18,7 @@ def estimate_tyre_life(degradation_df):
     return tyre_life
 
 
-def simulate_strategy(total_laps, compound_sequence, degradation_df, pit_loss=20.0):
+def simulate_strategy(total_laps, compound_sequence, degradation_df, pit_loss=20.0, tyre_life=None):
     """
     Simulate a race given a tyre compound sequence (list like ['M', 'H']) and degradation model.
 
@@ -33,7 +31,9 @@ def simulate_strategy(total_laps, compound_sequence, degradation_df, pit_loss=20
     Returns:
     - dict with total_race_time (s) and detailed stint times
     """
-    tyre_life = estimate_tyre_life(degradation_df)
+
+    if tyre_life is None:
+        tyre_life = estimate_tyre_life(degradation_df)
     stint_results = []
     laps_remaining = total_laps
     total_time = 0.0
@@ -143,7 +143,7 @@ def recommend_optimal_strategy(total_laps, degradation_df, pit_loss=20.0,
     for num_stints in stint_count_options:
         sequences = list(_generate_compound_sequences(compound_options, num_stints, weather))
         for seq in sequences:
-            sim = simulate_strategy(total_laps, seq, degradation_df, pit_loss, tyre_life)
+            sim = simulate_strategy(total_laps, seq, degradation_df, pit_loss=pit_loss, tyre_life=tyre_life)
             results.append(sim)
 
     if not results:

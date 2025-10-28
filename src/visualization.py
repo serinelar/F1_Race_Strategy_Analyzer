@@ -56,11 +56,13 @@ def plot_gap_to_leader(gap_df):
     gap_df: DataFrame returned by compute_gap_to_leader (contains LapNumber, Driver, GapToLeader_s)
     We'll plot lines per driver.
     """
-    if gap_df.empty:
-        fig = go.Figure()
-        fig.update_layout(title="No gap data available")
-        return fig
-
+    fig = go.Figure()
+    # leader is driver with GapToLeader_s == 0 on each Lap
+    leader = gap_df.loc[gap_df.groupby('LapNumber')['GapToLeader_s'].idxmin()]
+    leader_line = leader.groupby('LapNumber')['LeaderTime_s'].first().reset_index()
+    fig.add_trace(go.Scatter(x=leader_line['LapNumber'], y=leader_line['LeaderTime_s'],
+                             mode='lines', name='Leader cumulative time'))
+    
     fig = px.line(
         gap_df,
         x='LapNumber',

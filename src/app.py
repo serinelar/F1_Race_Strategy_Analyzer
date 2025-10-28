@@ -1,5 +1,3 @@
-
-
 import streamlit as st
 from data_loader import load_session
 from strategy_analysis import *
